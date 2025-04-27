@@ -8,4 +8,7 @@ extern void B_input(struct pkt);
 extern void A_output(struct msg);
 extern void A_timerinterrupt(void);
 
+extern void B_output(struct msg);
+extern void B_timerinterrupt(void);
+
 #endif

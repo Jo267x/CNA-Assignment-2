@@ -1,6 +1,5 @@
 #ifndef SR_H
 #define SR_H
-#define BIDIRECTIONAL 0  // or 1 for bidirectional communication
 
 extern void A_init(void);
 extern void B_init(void);

@@ -64,6 +64,7 @@ static struct pkt buffer[WINDOWSIZE];  /* array for storing packets waiting for 
 static int windowfirst, windowlast;    /* array indexes of the first/last packet awaiting ACK */
 static int windowcount;                /* the number of packets currently awaiting an ACK */
 static int A_nextseqnum;               /* the next sequence number to be used by the sender */
+static bool acked[SEQSPACE];           /* tracks whether the packet has been ACKed or not */
 
 /* called from layer 5 (application layer), passed the message to be sent to other side */
 void A_output(struct msg message)
@@ -189,29 +190,29 @@ void A_input(struct pkt packet)
 /* called when A's timer goes off */
 void A_timerinterrupt(void)
 {
-  int i;
-
-  if (TRACE > 0)
-    printf("----A: time out,resend packets!\n");
-
-  for(i=0; i<windowcount; i++) {
+    int i;
 
     if (TRACE > 0)
-      printf ("---A: resending packet %d\n", (buffer[(windowfirst+i) % WINDOWSIZE]).seqnum);
+    printf("----A: time out,resend packets!\n");
 
-    tolayer3(A,buffer[(windowfirst+i) % WINDOWSIZE]);
-    packets_resent++;
-    if (i==0) starttimer(A,RTT);
-  }
+    for(i=0; i<SEQSPACE; i++) {
+        if (!acked[i] && IsSeqNumInWindow(windowfirst, i)){
+            if (TRACE > 0)
+                printf ("---A: resending packet %d\n", buffer[i].seqnum);
+        tolayer3,(A, buffer[i]);
+        packets_resent++;
+        }
+    }
+
+    if (windowcount > 0) starttimer(A,RTT);
 }       
-
-
 
 /* the following routine will be called once (only) before any other */
 /* entity A routines are called. You can use it to do any initialization */
 void A_init(void)
 {
   /* initialise A's window, buffer and sequence number */
+  int i;
   A_nextseqnum = 0;  /* A starts with seq num 0, do not change this */
   windowfirst = 0;
   windowlast = -1;   /* windowlast is where the last packet sent is stored.  
@@ -219,6 +220,9 @@ void A_init(void)
 		     so initially this is set to -1
 		   */
   windowcount = 0;
+  for (i = 0; i < SEQSPACE; i++) {
+    acked[i] = false;
+  }
 }
 
 

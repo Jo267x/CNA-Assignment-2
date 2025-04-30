@@ -220,8 +220,8 @@ void A_init(void)
 		     so initially this is set to -1
 		   */
   windowcount = 0;
-  for (i = 0; i < SEQSPACE; i++) {
-    acked[i] = false;
+  for (i = 0; i < WINDOWSIZE; i++) {
+    packet_status[i] = NOTINUSE;
   }
 }
 

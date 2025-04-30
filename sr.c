@@ -24,9 +24,10 @@
 
 #define RTT  16.0       /* round trip time.  MUST BE SET TO 16.0 when submitting assignment */
 #define WINDOWSIZE 6    /* the maximum number of buffered unacked packet */
-#define SEQSPACE 20      /* the min sequence space for GBN must be at least windowsize + 1 */
+#define SEQSPACE 13     /* the min sequence space for GBN must be at least windowsize + 1 */
 #define NOTINUSE (-1)   /* used to fill header fields that are not being used */
-
+#define SENT 1
+#define ACKED 2
 /* generic procedure to compute the checksum of a packet.  Used by both sender and receiver  
    the simulator will overwrite part of your packet with 'z's.  It will not overwrite your 
    original checksum.  This procedure must generate a different checksum to the original if
@@ -62,6 +63,7 @@ bool IsSeqNumInWindow(int x, int seqnum) {
 
 static struct pkt buffer[WINDOWSIZE];  /* array for storing packets waiting for ACK */
 static int windowfirst, windowlast;    /* array indexes of the first/last packet awaiting ACK */
+static int packet_status[WINDOWSIZE];  /* tracking packet status in window */
 static int windowcount;                /* the number of packets currently awaiting an ACK */
 static int A_nextseqnum;               /* the next sequence number to be used by the sender */
 static bool acked[SEQSPACE];           /* tracks whether the packet has been ACKed or not */
@@ -71,6 +73,7 @@ void A_output(struct msg message)
 {
   struct pkt sendpkt;
   int i;
+  int window_index;
 
   /* if not blocked waiting on ACK */
   if ( windowcount < WINDOWSIZE) {
@@ -115,77 +118,61 @@ void A_output(struct msg message)
    In this practical this will always be an ACK as B never sends data.
 */
 void A_input(struct pkt packet)
-{
+{   int i;
+    int window_index;
+    bool can_slide=false;
+
     /* if received ACK is not corrupted */ 
     if(!IsCorrupted(packet)){
         if (TRACE > 0)
             printf("----A: Uncorrupted ACK %d is received\n", packet.acknum);
         total_ACKs_received++;
 
-        if(!acked[packet.acknum]){
-            if (TRACE > 0)
-                printf("----A: ACK %d is not a duplicate\n", packet.acknum);
-            acked[packet.acknum]= true;
-            new_ACKs++;
+        /*window index for packet*/
+        window_index=packet.acknum % WINDOWSIZE;
+        /*Checking whether the ACK for for current window packet*/
+        int seqnum_base=(A_nextseqnum-windowcount+SEQSPACE)%SEQSPACE;
+        int seqnum_max= (seqnum_base+windowcount-1)%SEQSPACE;
 
-            stoptimer(A);
-            while (windowcount > 0 && acked[windowfirst]){
-                windowfirst= (windowfirst + 1) % SEQSPACE;
-                windowcount--;
+        if(((seqnum_base<=seqnum_max)&&(packet.acknum<=seqnum_max && packet.acknum>=seqnum_base))||
+            ((seqnum_base>seqnum_max)&&(packet.acknum>=seqnum_base||
+            packet.acknum<=seqnum_max)))
+
+        {
+            if (packet_status[window_index]==SENT) 
+            {
+                if (TRACE>0)
+                    printf("----A: ACK %d accepted\n", packet.acknum);
+                    packet_status[window_index] = ACKED;
+
+                    while (windowcount > 0 && packet_status[windowfirst] == ACKED) {
+                        packet_status[windowfirst] = NOTINUSE;
+                        windowfirst = (windowfirst + 1) % WINDOWSIZE;
+                        windowcount--;
+                        can_slide = true;
+                    }
+    
+                    if (can_slide) {
+                        stoptimer(A);
+                        if (windowcount > 0)
+                            starttimer(A, RTT);
+                    } else {
+                        if (TRACE > 0)
+                            printf("----A: duplicate ACK received, do nothing!\n");
+                    }
+                } else {
+                    if (TRACE > 0)
+                        printf("----A: ACK %d already handled or not SENT\n", packet.acknum);
+                }
+            } else {
+                if (TRACE > 0)
+                    printf("----A: ACK %d is outside of window\n", packet.acknum);
             }
-            if (windowcount > 0)
-                starttimer(A, RTT);
         } else {
             if (TRACE > 0)
-            printf ("----A: duplicate ACK received, do nothing!\n");
+                printf("----A: Corrupted ACK received, do nothing!\n");
         }
-    } else {
-        if (TRACE > 0)
-        printf("----A: corrupted ACK is received, do nothing!\n");
     }
-}
-
-//     /* check if new ACK or duplicate */
-//     if (windowcount != 0) {
-//           int seqfirst = buffer[windowfirst].seqnum;
-//           int seqlast = buffer[windowlast].seqnum;
-//           /* check case when seqnum has and hasn't wrapped */
-//           if (((seqfirst <= seqlast) && (packet.acknum >= seqfirst && packet.acknum <= seqlast)) ||
-//               ((seqfirst > seqlast) && (packet.acknum >= seqfirst || packet.acknum <= seqlast))) {
-
-//             /* packet is a new ACK */
-//             if (TRACE > 0)
-//               printf("----A: ACK %d is not a duplicate\n",packet.acknum);
-//             new_ACKs++;
-
-//             /* cumulative acknowledgement - determine how many packets are ACKed */
-//             if (packet.acknum >= seqfirst)
-//               ackcount = packet.acknum + 1 - seqfirst;
-//             else
-//               ackcount = SEQSPACE - seqfirst + packet.acknum;
-
-// 	    /* slide window by the number of packets ACKed */
-//             windowfirst = (windowfirst + ackcount) % WINDOWSIZE;
-
-//             /* delete the acked packets from window buffer */
-//             for (i=0; i<ackcount; i++)
-//               windowcount--;
-
-// 	    /* start timer again if there are still more unacked packets in window */
-//             stoptimer(A);
-//             if (windowcount > 0)
-//               starttimer(A, RTT);
-
-//           }
-//         }
-//         else
-//           if (TRACE > 0)
-//         printf ("----A: duplicate ACK received, do nothing!\n");
-//   }
-//   else 
-//     if (TRACE > 0)
-//       printf ("----A: corrupted ACK is received, do nothing!\n");
-// }
 
 /* called when A's timer goes off */
 void A_timerinterrupt(void)
@@ -292,7 +279,7 @@ void B_init(void)
  *****************************************************************************/
 
 /* Note that with simplex transfer from a-to-B, there is no B_output() */
-void B_output(struct msg message)  
+void B_output(struct msg message)
 {
 }
 

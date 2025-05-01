@@ -235,68 +235,120 @@ static int RECEIVED_PACKET[WINDOWSIZE]; /*tracks which individual packet has bee
 /* called from layer 3, when a packet arrives for layer 4 at B*/
 void B_input(struct pkt packet)
 {
-    struct pkt sendpkt;
-    int i;
+  struct pkt sendpkt;
+  int i;
 
-    const int RECEIVER_BASE = expectedseqnum;
-    const int RECEIVER_MAX = (expectedseqnum + WINDOWSIZE - 1) % SEQSPACE;
+  const int RECEIVER_BASE= expectedseqnum;
+  const int RECEIVER_MAX= (expectedseqnum+WINDOWSIZE-1)%SEQSPACE;
 
-    if (IsCorrupted(packet)) {
-        if (TRACE > 0)
-            printf("----B: Packet is corrupted, ignored!\n");
-        return;
-    }
-
+  /* if not corrupted and received packet is in order */
+  if  (IsCorrupted(packet)) {
     if (TRACE > 0)
-        printf("----B: Packet %d is uncorrupted and received!\n", packet.seqnum);
+      printf("----B: packet is corrupted, ignored!\n");
+    return;
+  }
 
-    bool in_window = false;
+  if (TRACE>0)
+    printf("----B: packet %d is uncorrupted and is received!\n",packet.seqnum);
+  
+  packets_received++;
 
-    // Determine if packet is within the receiving window (with wraparound support)
-    if (RECEIVER_BASE <= RECEIVER_MAX) {
-        in_window = (packet.seqnum >= RECEIVER_BASE && packet.seqnum <= RECEIVER_MAX);
-    } else {
-        in_window = (packet.seqnum >= RECEIVER_BASE || packet.seqnum <= RECEIVER_MAX);
+  bool in_window=false;
+
+  if (RECEIVER_BASE <= RECEIVER_MAX)
+  { /* if window not wrapped around */
+    in_window=(packet.seqnum>=RECEIVER_BASE && packet.seqnum<= RECEIVER_MAX);
+  } else {
+    in_window= (packet.seqnum>= RECEIVER_BASE || packet.seqnum<= RECEIVER_MAX);
+  }
+
+  if (in_window)
+  {
+    int BUFFER_INDEX= (packet.seqnum-RECEIVER_BASE+WINDOWSIZE)%WINDOWSIZE;
+
+    if (packets_received[BUFFER_INDEX]==0)
+    {
+        RECEIVER_BUFFER[BUFFER_INDEX]=packet;
+        RECEIVED_PACKET[BUFFER_INDEX]=1;
     }
+        if (packet.seqnum==expectedseqnum)
+        {
+        /* deliver to receiving application */
+            tolayer5(B, packet.payload);
+            packets_received++;
 
-    if (in_window) {
-        int buffer_index = (packet.seqnum - RECEIVER_BASE + WINDOWSIZE) % WINDOWSIZE;
+            if (TRACE>0) 
+                printf ("----B: Delivering packet %d to layer5\n", packet.seqnum);
 
-        if (RECEIVED_PACKET[buffer_index] == 0) {
-            RECEIVER_BUFFER[buffer_index] = packet;
-            RECEIVED_PACKET[buffer_index] = 1;
-        }
+            expectedseqnum=(expectedseqnum+1)%SEQSPACE;
+            packets_received[0]=0;
 
-        // Deliver packets in order starting from expectedseqnum
-        if (packet.seqnum == expectedseqnum) {
-            while (RECEIVED_PACKET[0]) {
-                tolayer5(B, RECEIVER_BUFFER[0].payload);
-                if (TRACE > 0)
-                    printf("----B: Delivering packet %d to layer5\n", expectedseqnum);
+            i=1;
+            while (i,WINDOWSIZE&&packets_received[i]==1)
+            {
+                tolayer5(B, RECEIVER_BUFFER[i].payload);
+                packets_received++;
+                if (TRACE>0)
+                    printf ("----B: Delivering packet %d to layer5\n", (expectedseqnum-1+i)%SEQSPACE);
 
-                expectedseqnum = (expectedseqnum + 1) % SEQSPACE;
+                expectedseqnum=(expectedseqnum+1)%SEQSPACE;
+                RECEIVED_PACKET[i]=0;
+                i++;
+            }
 
-                // Slide window left
-                for (i = 0; i < WINDOWSIZE - 1; i++) {
-                    RECEIVER_BUFFER[i] = RECEIVER_BUFFER[i + 1];
-                    RECEIVED_PACKET[i] = RECEIVED_PACKET[i + 1];
+            if (i>0)
+            {
+                for (int x=0; x, WINDOWSIZE-i; x++)
+                {
+                    RECEIVED_PACKET[x]= RECEIVED_PACKET[x+i];
+                    if (RECEIVED_PACKET[x])
+                        RECEIVER_BUFFER[x]=RECEIVER_BUFFER[x+i];
                 }
 
-                RECEIVED_PACKET[WINDOWSIZE - 1] = 0; // Clear end slot
+                for (int x=WINDOWSIZE-i;x<WINDOWSIZE;x++)
+                {
+                    RECEIVED_PACKET[x]=0;
+                }
             }
-        }
     }
-
-    // Send ACK for the packet
-    sendpkt.acknum = packet.seqnum;
-    sendpkt.seqnum = 0; // Not used for ACKs
-    memset(sendpkt.payload, 0, sizeof(sendpkt.payload));
-    sendpkt.checksum = compute_checksum(sendpkt);
-
-    tolayer3(B, sendpkt);
-    if (TRACE > 0)
-        printf("----B: Sent ACK for packet %d\n", sendpkt.acknum);
 }
+
+    /* send an ACK for the received packet */
+    sendpkt.acknum = packet.seqnum;     
+    } else 
+    {
+    if (((RECEIVER_BASE-packet.seqnum+SEQSPACE)%SEQSPACE)<=WINDOWSIZE)
+    {
+        sendpkt.acknum=packet_seqnum;
+
+        if (TRACE>0)
+            printf("----B: Ignoring packet %d outside of window\n",packet.seqnum);
+
+    } else {
+        if (TRACE>0)
+            printf("----B: Ignoring packet %d outside of window\n",packet.seqnum);
+            return;
+    }
+  }
+
+  /* create packet */
+  sendpkt.seqnum = B_nextseqnum;
+  B_nextseqnum = (B_nextseqnum + 1) % 2;
+    
+  /* we don't have any data to send.  fill payload with 0's */
+  for ( i=0; i<20 ; i++ ) 
+    sendpkt.payload[i] = '0';  
+
+  /* computer checksum */
+  sendpkt.checksum = ComputeChecksum(sendpkt); 
+
+  /* send out packet */
+  tolayer3 (B, sendpkt);
+
+  if (TRACE > 0)
+  printf("----B: sent ACK %d\n", sendpkt.acknum);
+}
+
 
 
 /* the following routine will be called once (only) before any other */

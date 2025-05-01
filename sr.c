@@ -179,32 +179,33 @@ void A_timerinterrupt(void)
 {
     int i;
     int win_index;
-    static int next_timeout=0;    /*To track the next timeout*/
+    static int next_timeout = 0;
 
     if (TRACE > 0)
-    printf("----A: time out,resend packets!\n");
+        printf("----A: Timeout, checking for packets to resend\n");
 
-    if (windowcount>0)
+    if (windowcount > 0)
     {
         for (i = 0; i < WINDOWSIZE; i++)
         {
             win_index = (next_timeout + i) % WINDOWSIZE;
-            if (packet_status[win_index]==SENT)
+
+            if (packet_status[win_index] == SENT)
             {
-                if (TRACE>0)
-                    printf ("---A: resending packet %d\n", buffer[i].seqnum);
+                if (TRACE > 0)
+                    printf("---A: Resending packet %d\n", buffer[win_index].seqnum);
 
-                    tolayer3,(A, buffer[win_index]);
-                    packets_resent++;
+                tolayer3(A, buffer[win_index]);
+                packets_resent++;
 
-                    next_timeout=(win_index+1)%WINDOWSIZE;
+                next_timeout = (win_index + 1) % WINDOWSIZE;
 
-                    starttimer(A,RTT);
-                    
-                    return;
+                starttimer(A, RTT);
+                return; // only one packet per timer interrupt
             }
-    }
-    next_timeout=(next_timeout+1)%WINDOWSIZE;
+        }
+        // If no packet found, increment pointer
+        next_timeout = (next_timeout + 1) % WINDOWSIZE;
     }
 }
 /* the following routine will be called once (only) before any other */

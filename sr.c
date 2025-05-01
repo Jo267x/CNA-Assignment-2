@@ -296,26 +296,39 @@ void B_input(struct pkt packet)
                 i++;
             }
 
+            if (i>0)
+            {
+                for (int x=0; x, WINDOWSIZE-i; x++)
+                {
+                    RECEIVED_PACKET[x]= RECEIVED_PACKET[x+i];
+                    if (RECEIVED_PACKET[x])
+                        RECEIVER_BUFFER[x]=RECEIVER_BUFFER[x+i];
+                }
 
-
-
+                for (int x=WINDOWSIZE-i;x<WINDOWSIZE;x++)
+                {
+                    RECEIVED_PACKET[x]=0;
+                }
+            }
     }
-  }
+}
 
     /* send an ACK for the received packet */
-    sendpkt.acknum = expectedseqnum;
+    sendpkt.acknum = packet.seqnum;     
+    } else 
+    {
+    if (((RECEIVER_BASE-packet.seqnum+SEQSPACE)%SEQSPACE)<=WINDOWSIZE)
+    {
+        sendpkt.acknum=packet_seqnum;
 
-    /* update state variables */
-    expectedseqnum = (expectedseqnum + 1) % SEQSPACE;        
-  }
-  else {
-    /* packet is corrupted or out of order resend last ACK */
-    if (TRACE > 0) 
-      printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");
-    if (expectedseqnum == 0)
-      sendpkt.acknum = SEQSPACE - 1;
-    else
-      sendpkt.acknum = expectedseqnum - 1;
+        if (TRACE>0)
+            printf("----B: Ignoring packet %d outside of window\n",packet.seqnum);
+
+    } else {
+        if (TRACE>0)
+            printf("----B: Ignoring packet %d outside of window\n",packet.seqnum);
+            return;
+    }
   }
 
   /* create packet */
@@ -331,6 +344,11 @@ void B_input(struct pkt packet)
 
   /* send out packet */
   tolayer3 (B, sendpkt);
+
+  if (TRACE > 0)
+  printf("----B: sent ACK %d\n", sendpkt.acknum);
+}
+
 
 
 /* the following routine will be called once (only) before any other */

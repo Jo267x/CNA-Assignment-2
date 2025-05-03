@@ -305,9 +305,9 @@ void B_input(struct pkt packet)
 /* entity B routines are called. You can use it to do any initialization */
 void B_init(void)
 {
+  int i;
   expectedseqnum = 0;
   B_nextseqnum = 1;
-  int i;
   for (i = 0; i < WINDOWSIZE; i++) 
   {
     RECEIVED_PACKET[i] = 0;

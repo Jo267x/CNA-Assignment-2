@@ -119,84 +119,69 @@ void A_output(struct msg message)
    In this practical this will always be an ACK as B never sends data.
 */
 void A_input(struct pkt packet)
-{   
+{
     int index;
     int i;
     int sequence;
 
-    /* if received ACK is not corrupted */ 
-    if(!IsCorrupted(packet)){
+    if (!IsCorrupted(packet)) {
         if (TRACE > 0)
             printf("----A: uncorrupted ACK %d is received\n", packet.acknum);
         total_ACKs_received++;
 
-        if(((sender_base<=(sender_base+ WINDOWSIZE-1)%SEQSPACE)&&
-             (packet.acknum>=sender_base&&packet.acknum<=(sender_base+WINDOWSIZE-1)%SEQSPACE))||
-             ((sender_base>(sender_base+WINDOWSIZE-1)%SEQSPACE)&&(packet.acknum>=sender_base||packet.acknum<=(sender_base+WINDOWSIZE-1)%SEQSPACE)))
-        {
+        if (((sender_base <= (sender_base + WINDOWSIZE - 1) % SEQSPACE) &&
+             (packet.acknum >= sender_base && packet.acknum <= (sender_base + WINDOWSIZE - 1) % SEQSPACE)) ||
+            ((sender_base > (sender_base + WINDOWSIZE - 1) % SEQSPACE) &&
+             (packet.acknum >= sender_base || packet.acknum <= (sender_base + WINDOWSIZE - 1) % SEQSPACE))) {
+
             index = packet.acknum % WINDOWSIZE;
 
-            /* window index for packet */
-            if (acked[index]) 
-            {
-                if (TRACE > 0) {
-                    printf("----A: duplicate ACK received, do nothing!\n");
-                }
-                else 
-                {
-                    if (TRACE > 0)
-                        printf("----A: ACK %d is not a duplicate\n", packet.acknum);
-                    new_ACKs++;
-                    acked[index] = true;
-                    stoptimer(A);
-
-                    if (packet.acknum == sender_base)
-                    {
-                        while (acked[sender_base% WINDOWSIZE]) 
-                        {
-                            acked[sender_base% WINDOWSIZE] = false;
-                            sender_base = (sender_base+ 1)% SEQSPACE;
-                            windowcount--;
-
-                            if (windowcount == 0)
-                                break;
-                        }
-                    }
-
-                    if (windowcount > 0) 
-                    {
-                        for (i = 0; i < WINDOWSIZE; i++) {
-                            sequence = (sender_base+ i) % SEQSPACE;
-                            if (sequence == A_nextseqnum)
-                                break;
-                            index = sequence% WINDOWSIZE;
-                            if (!acked[index]) {
-                                starttimer(A, RTT);
-                                break;
-                            }
-                        }
-                    }
-                }
-            } 
-            else 
-            {
+            if (buffer[index].seqnum == packet.acknum && !acked[index]) {
                 if (TRACE > 0)
-                    printf("----A: ACK %d outside current window, do nothing!\n", packet.acknum);
+                    printf("----A: ACK %d is not a duplicate\n", packet.acknum);
+
+                new_ACKs++;
+                acked[index] = true;
+                stoptimer(A);
+
+                if (packet.acknum == sender_base) {
+                    while (acked[sender_base % WINDOWSIZE]) {
+                        acked[sender_base % WINDOWSIZE] = false;
+                        sender_base = (sender_base + 1) % SEQSPACE;
+                        windowcount--;
+                        if (windowcount == 0)
+                            break;
+                    }
+                }
+
+                if (windowcount > 0) {
+                    for (i = 0; i < WINDOWSIZE; i++) {
+                        sequence = (sender_base + i) % SEQSPACE;
+                        if (sequence == A_nextseqnum)
+                            break;
+                        index = sequence % WINDOWSIZE;
+                        if (!acked[index]) {
+                            starttimer(A, RTT);
+                            break;
+                        }
+                    }
+                }
+
+            } else {
+                if (TRACE > 0)
+                    printf("----A: duplicate or mismatched ACK %d received, do nothing!\n", packet.acknum);
             }
-        } 
-        else 
-        {
+
+        } else {
             if (TRACE > 0)
                 printf("----A: ACK %d outside current window, do nothing!\n", packet.acknum);
         }
-    } 
-    else 
-    {
+
+    } else {
         if (TRACE > 0)
             printf("----A: corrupted ACK is received, do nothing!\n");
     }
 }
-
     
 
 /* called when A's timer goes off */

@@ -77,7 +77,7 @@ void A_output(struct msg message)
   /* if not blocked waiting on ACK */
   if ( windowcount < WINDOWSIZE) {
     if (TRACE > 1)
-      printf("----A: New message arrives, send window is not full, send new messge to layer3!\n");
+      printf("----A: New message arrives, send window is not full, send new message to layer3!\n");
 
     /* create packet */
     sendpkt.seqnum = A_nextseqnum;
@@ -127,7 +127,7 @@ void A_input(struct pkt packet)
     /* if received ACK is not corrupted */ 
     if(!IsCorrupted(packet)){
         if (TRACE > 0)
-            printf("----A: Uncorrupted ACK %d is received\n", packet.acknum);
+            printf("----A: uncorrupted ACK %d is received\n", packet.acknum);
         total_ACKs_received++;
 
         seqnum_base = (A_nextseqnum - windowcount + SEQSPACE) % SEQSPACE;
@@ -144,7 +144,7 @@ void A_input(struct pkt packet)
             if (packet_status[win_index]==SENT) 
             {
                 if (TRACE>0) {
-                printf("----A: ACK %d accepted\n", packet.acknum);
+                printf("----A: ACK %d is not a duplicate\n", packet.acknum);
                 }
                 packet_status[win_index] = ACKED;
 
@@ -173,7 +173,7 @@ void A_input(struct pkt packet)
             }
         } else {
             if (TRACE > 0)
-                printf("----A: corrupted ACK received, do nothing!\n");
+                printf("----A: corrupted ACK is received, do nothing!\n");
     }
     
 }
@@ -196,7 +196,7 @@ void A_timerinterrupt(void)
             if (packet_status[win_index] == SENT)
             {
                 if (TRACE > 0)
-                    printf("---A: resending packet %d\n", buffer[win_index].seqnum);
+                    printf("----A: resending packet %d\n", buffer[win_index].seqnum);
 
                 tolayer3(A, buffer[win_index]);
                 packets_resent++;
@@ -307,7 +307,8 @@ void B_init(void)
 {
   expectedseqnum = 0;
   B_nextseqnum = 1;
-  for (int i = 0; i < WINDOWSIZE; i++) 
+  int i;
+  for (i = 0; i < WINDOWSIZE; i++) 
   {
     RECEIVED_PACKET[i] = 0;
   }

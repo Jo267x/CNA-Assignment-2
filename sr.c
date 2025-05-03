@@ -122,7 +122,7 @@ void A_input(struct pkt packet)
     bool can_slide=false;
     int seqnum_base;
     int seqnum_max;
-    win_index = packet.acknum % WINDOWSIZE;
+    bool in_window;
 
     /* if received ACK is not corrupted */ 
     if(!IsCorrupted(packet)){
@@ -130,17 +130,17 @@ void A_input(struct pkt packet)
             printf("----A: Uncorrupted ACK %d is received\n", packet.acknum);
         total_ACKs_received++;
 
-        /*window index for packet*/
-        win_index=packet.acknum % WINDOWSIZE;
-        /*Checking whether the ACK for for current window packet*/
         seqnum_base = (A_nextseqnum - windowcount + SEQSPACE) % SEQSPACE;
-        seqnum_max= (seqnum_base+windowcount-1)%SEQSPACE;
+        seqnum_max = (seqnum_base + windowcount - 1) % SEQSPACE;
 
-        if(((seqnum_base<=seqnum_max)&&(packet.acknum<=seqnum_max && packet.acknum>=seqnum_base))||
-            ((seqnum_base>seqnum_max)&&(packet.acknum>=seqnum_base||
-            packet.acknum<=seqnum_max)))
-
+        in_window = (seqnum_base <= seqnum_max)
+        ? (packet.acknum >= seqnum_base && packet.acknum <= seqnum_max)
+        : (packet.acknum >= seqnum_base || packet.acknum <= seqnum_max);
+        /*window index for packet*/
+        if (in_window) 
         {
+        win_index = (packet.acknum - seqnum_base + SEQSPACE) % SEQSPACE;
+
             if (packet_status[win_index]==SENT) 
             {
                 if (TRACE>0) {
@@ -169,14 +169,14 @@ void A_input(struct pkt packet)
                 }
             } else {
                 if (TRACE > 0)
-                    printf("----A: ACK %d is outside of window\n", packet.acknum);
+                    printf("----A: ACK %d outside of current window, do nothing!\n", packet.acknum);
             }
         } else {
             if (TRACE > 0)
-                printf("----A: Corrupted ACK received, do nothing!\n");
-        }
+                printf("----A: corrupted ACK received, do nothing!\n");
     }
-
+    
+}
 /* called when A's timer goes off */
 void A_timerinterrupt(void)
 {
@@ -185,7 +185,7 @@ void A_timerinterrupt(void)
     static int next_timeout = 0;
 
     if (TRACE > 0)
-        printf("----A: Timeout, checking for packets to resend\n");
+        printf("----A: time out, resend packets!\n");
 
     if (windowcount > 0)
     {
@@ -196,7 +196,7 @@ void A_timerinterrupt(void)
             if (packet_status[win_index] == SENT)
             {
                 if (TRACE > 0)
-                    printf("---A: Resending packet %d\n", buffer[win_index].seqnum);
+                    printf("---A: resending packet %d\n", buffer[win_index].seqnum);
 
                 tolayer3(A, buffer[win_index]);
                 packets_resent++;
@@ -247,12 +247,12 @@ void B_input(struct pkt packet)
 
     if (IsCorrupted(packet)) {
         if (TRACE > 0)
-            printf("----B: Packet is corrupted, ignored!\n");
+            printf("----B: corrupted packet received, ignored!\n");
         return;
     }
 
     if (TRACE > 0)
-        printf("----B: Packet %d is uncorrupted and received!\n", packet.seqnum);
+        printf("----B: uncorrupted packet %d is received\n", packet.seqnum);
 
     RECEIVER_BASE = expectedseqnum;
     RECEIVER_MAX = (expectedseqnum + WINDOWSIZE - 1) % SEQSPACE;
@@ -275,7 +275,7 @@ void B_input(struct pkt packet)
         while (RECEIVED_PACKET[0]) {
             tolayer5(B, RECEIVER_BUFFER[0].payload);
             if (TRACE > 0)
-                printf("----B: Delivering packet %d to layer5\n", expectedseqnum);
+                printf("----B: packet %d is delivered to layer 5\n", expectedseqnum);
 
             expectedseqnum = (expectedseqnum + 1) % SEQSPACE;
 

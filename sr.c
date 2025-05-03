@@ -295,13 +295,13 @@ void B_input(struct pkt packet)
     }
     } else
     {
-      if (TRACE > 0)
-        printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");
+        if (TRACE > 0)
+            printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");
 
         if (expectedseqnum==0)
-        sendpkt.acknum=SEQSPACE-1;
+            sendpkt.acknum=SEQSPACE-1;
         else
-        sendpkt.acknum=expectedseqnum-1;
+            sendpkt.acknum=expectedseqnum-1;
     }
 
     sendpkt.seqnum=B_nextseqnum;

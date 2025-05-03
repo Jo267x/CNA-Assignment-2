@@ -204,8 +204,7 @@ void A_input(struct pkt packet)
 void A_timerinterrupt(void)
 {
     int i;
-    int win_index;
-    static int next_timeout = 0;
+    int index;
 
     if (TRACE > 0)
         printf("----A: time out, resend packets!\n");
@@ -214,24 +213,20 @@ void A_timerinterrupt(void)
     {
         for (i = 0; i < WINDOWSIZE; i++)
         {
-            win_index = (next_timeout + i) % WINDOWSIZE;
+            index = (sender_base + i) % SEQSPACE % WINDOWSIZE;
 
-            if (packet_status[win_index] == SENT)
+            if (!acked[index]&&(sender_base+1)%SEQSPACE!= A_nextseqnum)
             {
                 if (TRACE > 0)
-                    printf("----A: resending packet %d\n", buffer[win_index].seqnum);
+                    printf("----A: resending packet %d\n", buffer[index].seqnum);
 
-                tolayer3(A, buffer[win_index]);
+                tolayer3(A, buffer[index]);
                 packets_resent++;
 
-                next_timeout = (win_index + 1) % WINDOWSIZE;
-
                 starttimer(A, RTT);
-                return; /* only one packet per timer interrupt */
+                break; /* only one packet per timer interrupt */
             }
         }
-        /* If no packet found, increment pointer */
-        next_timeout = (next_timeout + 1) % WINDOWSIZE;
     }
 }
 /* the following routine will be called once (only) before any other */

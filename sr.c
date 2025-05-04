@@ -271,7 +271,7 @@ void B_input(struct pkt packet)
             }
         }
 
-        sendpkt.acknum=packet.acknum;
+        sendpkt.acknum=packet.seqnum;
     } else 
     {
       if (TRACE > 0)

@@ -263,11 +263,11 @@ void B_input(struct pkt packet)
         expectedseqnum = (expectedseqnum + 1) % SEQSPACE;
 
         sendpkt.acknum=packet.seqnum;
-        
+
         for (i = 0; i < WINDOWSIZE; i++) {
             int next_seq = (expectedseqnum + i) % SEQSPACE;
             if (RECEIVED_PACKET[next_seq % WINDOWSIZE]) {
-                // Deliver buffered packet
+                /* Deliver buffered packet */
                 tolayer5(B, buffer[next_seq % WINDOWSIZE].payload);
                 RECEIVED_PACKET[next_seq % WINDOWSIZE] = false;
                 expectedseqnum = (next_seq + 1) % SEQSPACE;

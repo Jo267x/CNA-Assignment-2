@@ -234,6 +234,7 @@ static int expectedseqnum; /* the sequence number expected next by the receiver 
 static int B_nextseqnum;   /* the sequence number for the next packets sent by B */
 static int last_ack_sent;  /* to track the last ACK sent */
 static bool RECEIVED_PACKET[WINDOWSIZE]; /*tracks which individual packet has been recieved*/
+static struct pkt buffer[WINDOWSIZE];
 
 /* called from layer 3, when a packet arrives for layer 4 at B*/
 void B_input(struct pkt packet)
@@ -262,6 +263,16 @@ void B_input(struct pkt packet)
         expectedseqnum = (expectedseqnum + 1) % SEQSPACE;
 
         sendpkt.acknum=packet.seqnum;
+        
+        for (i = 0; i < WINDOWSIZE; i++) {
+            int next_seq = (expectedseqnum + i) % SEQSPACE;
+            if (RECEIVED_PACKET[next_seq % WINDOWSIZE]) {
+                // Deliver buffered packet
+                tolayer5(B, buffer[next_seq % WINDOWSIZE].payload);
+                RECEIVED_PACKET[next_seq % WINDOWSIZE] = false;
+                expectedseqnum = (next_seq + 1) % SEQSPACE;
+            }
+        }
     } else 
     {
       if (TRACE > 0)

@@ -138,13 +138,8 @@ void A_input(struct pkt packet)
             index = packet.acknum % WINDOWSIZE;
 
             if (!acked[index]) {
-                if (TRACE > 0)
-                    printf("----A: ACK %d is not a duplicate\n", packet.acknum);
-
-                new_ACKs++;
                 acked[index] = true;
-                stoptimer(A);
-
+                stoptimer(A);  /* Stop the timer for this packet */
                 if (packet.acknum == sender_base) {
                     while (acked[sender_base % WINDOWSIZE]) {
                         acked[sender_base % WINDOWSIZE] = false;
@@ -154,20 +149,6 @@ void A_input(struct pkt packet)
                             break;
                     }
                 }
-
-                if (windowcount > 0) {
-                    for (i = 0; i < WINDOWSIZE; i++) {
-                        sequence = (sender_base + i) % SEQSPACE;
-                        if (sequence == A_nextseqnum)
-                            break;
-                        index = sequence % WINDOWSIZE;
-                        if (!acked[index]) {
-                            starttimer(A, RTT);
-                            break;
-                        }
-                    }
-                }
-
             } else {
                 if (TRACE > 0)
                     printf("----A: duplicate or mismatched ACK %d received, do nothing!\n", packet.acknum);

@@ -241,59 +241,63 @@ void B_input(struct pkt packet)
 {
     struct pkt sendpkt;
     int i;
+    int idx;
     int exp_window;
     bool in_window;
 
-    if ((!IsCorrupted(packet)) && (packet.seqnum==expectedseqnum))
-    {
-        exp_window=(expectedseqnum+WINDOWSIZE-1)%SEQSPACE;
+    if (!IsCorrupted(packet)) {
+        exp_window = (expectedseqnum + WINDOWSIZE - 1) % SEQSPACE;
 
-        in_window= (expectedseqnum<=exp_window&&packet.seqnum>=expectedseqnum&&packet.seqnum<=exp_window)||
-                   (expectedseqnum>exp_window&&(packet.seqnum>=expectedseqnum||packet.seqnum<=exp_window));
-    if (in_window){
-        if (TRACE>0)
-            printf("----B: packet %d is correctly received, send ACK!\n", packet.seqnum);
+        in_window = (expectedseqnum <= exp_window && packet.seqnum >= expectedseqnum && packet.seqnum <= exp_window) ||
+                    (expectedseqnum > exp_window && (packet.seqnum >= expectedseqnum || packet.seqnum <= exp_window));
 
-        packets_received++;
-        tolayer5(B, packet.payload);
+        if (in_window) {
+            idx = packet.seqnum % WINDOWSIZE;
 
-        last_ack_sent = packet.seqnum; 
-
-        sendpkt.acknum = last_ack_sent;
-        expectedseqnum = (expectedseqnum + 1) % SEQSPACE;
-
-        sendpkt.acknum=packet.seqnum;
-
-        for (i = 0; i < WINDOWSIZE; i++) {
-            int next_seq = (expectedseqnum + i) % SEQSPACE;
-            if (RECEIVED_PACKET[next_seq % WINDOWSIZE]) {
-                /* Deliver buffered packet */
-                tolayer5(B, buffer[next_seq % WINDOWSIZE].payload);
-                RECEIVED_PACKET[next_seq % WINDOWSIZE] = false;
-                expectedseqnum = (next_seq + 1) % SEQSPACE;
+            if (!RECEIVED_PACKET[idx]) {
+                buffer[idx] = packet;
+                RECEIVED_PACKET[idx] = true;
+                if (TRACE > 0)
+                    printf("----B: packet %d is correctly received, send ACK!\n", packet.seqnum);
             }
+
+            if (packet.seqnum == expectedseqnum) {
+                packets_received++;
+                tolayer5(B, packet.payload);
+                RECEIVED_PACKET[idx] = false;
+                expectedseqnum = (expectedseqnum + 1) % SEQSPACE;
+
+                for (i = 0; i < WINDOWSIZE; i++) {
+                    int next_seq = (expectedseqnum + i) % SEQSPACE;
+                    int next_idx = next_seq % WINDOWSIZE;
+                    if (RECEIVED_PACKET[next_idx]) {
+                        tolayer5(B, buffer[next_idx].payload);
+                        RECEIVED_PACKET[next_idx] = false;
+                        expectedseqnum = (expectedseqnum + 1) % SEQSPACE;
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            last_ack_sent = packet.seqnum;
+            sendpkt.acknum = last_ack_sent;
+        } else {
+            if (TRACE > 0)
+                printf("----B: packet outside receive window, send ACK!\n");
+            sendpkt.acknum = packet.seqnum;
         }
-    } else 
-    {
-      if (TRACE > 0)
-        printf("----B: packet outside receive window, send ACK!\n");
-      sendpkt.acknum = packet.seqnum;
-    }
-    } else
-    {
+    } else {
         if (TRACE > 0)
             printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");
-
         sendpkt.acknum = last_ack_sent;
     }
 
-    sendpkt.seqnum=B_nextseqnum;
-    B_nextseqnum=(B_nextseqnum+1)%2;
-
-    for (i=0; i<20; i++)
-        sendpkt.payload[i]='0';
-
-    sendpkt.checksum=ComputeChecksum(sendpkt);
+    sendpkt.seqnum = B_nextseqnum;
+    B_nextseqnum = (B_nextseqnum + 1) % 2;
+    for (i = 0; i < 20; i++)
+        sendpkt.payload[i] = '0';
+    sendpkt.checksum = ComputeChecksum(sendpkt);
 
     tolayer3(B, sendpkt);
 }

@@ -136,7 +136,7 @@ void A_input(struct pkt packet)
 
             index = packet.acknum % WINDOWSIZE;
 
-            if (buffer[index].seqnum == packet.acknum && !acked[index]) {
+            if (!acked[index]) {
                 if (TRACE > 0)
                     printf("----A: ACK %d is not a duplicate\n", packet.acknum);
 

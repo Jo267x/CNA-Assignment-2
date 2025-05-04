@@ -232,7 +232,7 @@ void A_init(void)
 
 static int expectedseqnum; /* the sequence number expected next by the receiver */
 static int B_nextseqnum;   /* the sequence number for the next packets sent by B */
-static struct pkt RECEIVER_BUFFER[WINDOWSIZE]; /* for packets that are out of order*/
+static int last_ack_sent;  /* to track the last ACK sent */
 static bool RECEIVED_PACKET[WINDOWSIZE]; /*tracks which individual packet has been recieved*/
 
 /* called from layer 3, when a packet arrives for layer 4 at B*/
@@ -240,11 +240,10 @@ void B_input(struct pkt packet)
 {
     struct pkt sendpkt;
     int i;
-    int index;
     int exp_window;
     bool in_window;
 
-    if (!IsCorrupted(packet)) 
+    if ((!IsCorrupted(packet)) && (packet.seqnum==expectedseqnum))
     {
         exp_window=(expectedseqnum+WINDOWSIZE-1)%SEQSPACE;
 
@@ -255,21 +254,12 @@ void B_input(struct pkt packet)
             printf("----B: packet %d is correctly received, send ACK!\n", packet.seqnum);
 
         packets_received++;
-        index=packet.seqnum%WINDOWSIZE;
-        RECEIVER_BUFFER[index]=packet;
-        RECEIVED_PACKET[index]=true;
+        tolayer5(B, packet.payload);
 
-        if (packet.seqnum==expectedseqnum)
-        {
-            while (RECEIVED_PACKET[expectedseqnum%WINDOWSIZE])
-            {
-                tolayer5(B, RECEIVER_BUFFER[expectedseqnum%WINDOWSIZE].payload);
+        last_ack_sent = packet.seqnum; 
 
-                RECEIVED_PACKET[expectedseqnum%WINDOWSIZE]=false;
-
-                expectedseqnum=(expectedseqnum+1)%SEQSPACE;
-            }
-        }
+        sendpkt.acknum = last_ack_sent;
+        expectedseqnum = (expectedseqnum + 1) % SEQSPACE;
 
         sendpkt.acknum=packet.seqnum;
     } else 
@@ -283,10 +273,7 @@ void B_input(struct pkt packet)
         if (TRACE > 0)
             printf("----B: packet corrupted or not expected sequence number, resend ACK!\n");
 
-        if (expectedseqnum==0)
-            sendpkt.acknum=SEQSPACE-1;
-        else
-            sendpkt.acknum=expectedseqnum-1;
+        sendpkt.acknum = last_ack_sent;
     }
 
     sendpkt.seqnum=B_nextseqnum;
@@ -307,6 +294,7 @@ void B_init(void)
   int i;
   expectedseqnum = 0;
   B_nextseqnum = 1;
+  last_ack_sent = SEQSPACE - 1;
   for (i = 0; i < WINDOWSIZE; i++) 
   {
     RECEIVED_PACKET[i] = false;

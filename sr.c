@@ -101,6 +101,7 @@ void A_output(struct msg message)
     /* start timer if first packet in window */
     timers[BUFFER_INDEX]=A_nextseqnum;
     starttimer(A,RTT);
+    timers[BUFFER_INDEX] = A_nextseqnum;
     windowcount++;
 
     /* get next sequence number, wrap back to 0 */
@@ -188,28 +189,12 @@ void A_input(struct pkt packet)
 void A_timerinterrupt(void)
 {
     int i;
-    int index;
-
-    if (TRACE > 0)
-        printf("----A: time out, resend packets!\n");
-
-    if (windowcount > 0)
-    {
-        for (i = 0; i < WINDOWSIZE; i++)
-        {
-            index = (sender_base + i) % SEQSPACE % WINDOWSIZE;
-
-            if (!acked[index]&&(sender_base+1)%SEQSPACE!= A_nextseqnum)
-            {
-                if (TRACE > 0)
-                    printf("----A: resending packet %d\n", buffer[index].seqnum);
-
-                tolayer3(A, buffer[index]);
-                packets_resent++;
-
-                starttimer(A, RTT);
-                break; /* only one packet per timer interrupt */
-            }
+    for (i = 0; i < WINDOWSIZE; i++) {
+        if (timers[i] != NOTINUSE && !acked[i]) {
+            // Resend the corresponding packet
+            tolayer3(A, buffer[i]);
+            starttimer(A, RTT);  // Restart the timer for the packet
+            packets_resent++;
         }
     }
 }
